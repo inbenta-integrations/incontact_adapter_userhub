@@ -2,8 +2,13 @@
     "require": {
         "php": "^7.3",
         "guzzlehttp/guzzle": "^7.4",
+        "monolog/monolog": "^2.1",
+        "php-di/php-di": "^6.0",
+        "klein/klein": "^2.1",
+        "ralouphie/getallheaders": "^3.0",
+        "symfony/http-foundation": "^3",
         "vlucas/phpdotenv": "^5.4",
-        "ralouphie/getallheaders": "^3.0"
+        "sentry/sdk": "^3.1"
     },
     "autoload": {
         "psr-4": {

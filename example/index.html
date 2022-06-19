@@ -158,7 +158,10 @@
 				userType: 0,
 				lang: 'en',
 				labels: {
-					en: { 'interface-title': 'InContact Adapter' }
+					en: {
+                        'interface-title': 'InContact Adapter',
+                        'transcriptConversationTitle': 'Transcript Conversation'
+                    }
 				},
 				closeButton: { visible: true },
 				html: { 'custom-window-header': '<div></div>' },
@@ -199,7 +202,7 @@
 			 * InContact adapter must be pushed before escalation adapters
 			 * Uncomment below the escalation adatper to use
 			 */
-			inbentaIncontactAdapter(inbApp.incontactConf),
+			inbentaIncontactAdapter(inbApp.incontactConf, inbApp.sdkConfig),
 
 			/*
 			 * Escalate to InContact with natural language form
