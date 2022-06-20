@@ -1,6 +1,6 @@
 <?php
 
-require __DIR__ . '/vendor/autoload.php';
+require 'vendor/autoload.php';
 
 use App\IncontactAction;
 use App\SessionManager;
@@ -13,11 +13,12 @@ if (is_file($envPath)) {
     Dotenv\Dotenv::createImmutable(__DIR__)->safeLoad();
 }
 
+$headers = getallheaders();
 $router = new Router();
 
 try {
-    $session = new SessionManager();
-    $app = new IncontactAction($session);
+    $session = new SessionManager($headers);
+    $app = new IncontactAction($session, $headers);
 
     $router->respond('GET', '/hours-of-operation', function (Request $request, Response $response) use ($app) {
         $result = $app->getHoursOfOperation($request->params(), $response);
@@ -56,6 +57,7 @@ try {
 } catch (Exception $e) {
     $router->respond(function (Request $request, Response $response) use ($e) {
         $response->code(403);
+        header_remove("Access-Control-Allow-Origin");
         $error = ["error" => $e->getMessage()];
         return $response->json($error);
     });

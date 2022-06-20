@@ -4,7 +4,7 @@
 * [Description](#description)
 * [Functionalities](#functionalities)
 * [Installation](#installation)
-    * [Access Token Middleware](#access-token-middleware)
+    * [PHP App Middleware](#php-app-middleware)
     * [Configuration](#configuration)
 * [Troubleshooting](#troubleshooting)
 * [Integration example](#integration-example)
@@ -13,11 +13,11 @@
 ## Description
 
 The purpose of this adapter is to allow Inbenta customers to connect the [Inbenta's Chatbot](https://www.inbenta.com/en/products/chatbot/) to Nice [InContact](https://www.niceincontact.com/) and thus use the Incontact chat platform instead of the default provided by Inbenta (HyperChat solution).
-The adapter is an extension of how the chatbot works, so installation should be easy.
 
 ## Functionalities
 
-The adapter creates and establishes a connection between the user and the Incontact platform using the [Patron API] (https://developer.niceincontact.com/API/PatronAPI#/) provided by NICE.
+The adapter creates and establishes a connection between the user and the Incontact platform using the [Patron API] (https://developer.niceincontact.com/API/PatronAPI#/) provided by NICE, all this through a [PHP App Middleware](#php-app-middleware).
+
 This API allows to obtain chat updates (messages only) using Long Polling technology, but is limited to the following features:
 
 * Chat creation after bot escalation that passes the following variables to the Patron API within the javascript object called **payload**.
@@ -32,40 +32,48 @@ This API allows to obtain chat updates (messages only) using Long Polling techno
 * **Hours of Operation** by using **Admin API**, checking the configured Hours of Operation from Incontact.
 
 ## Installation
+
 In order to add this adapter to your SDK, you need to import the file `/src/incontact-adapter.js` into the HTML/JS file where you're building the SDK. Then, append it to the SDK adapters array providing the adapter configuration as shown in the [example](#integration-example) section.
 Before installing it, consider the following:
 
 * The adapter works with version **'1.41.0'** of the SDK.
-* The adapter only works with the Patron API version **'v12.0'**
-* The adapter needs **cookies** to maintain the user's session with Incontact.
-* In order to start using Incontact API's the **accessKeyId** and **accessKeySecret** are needed, you can get this information from an Incontact active user. In your Incontact platform, go to _My Profile -> Access Keys_ and click on "_Add access key_" button. This values should be added in the `.env` file of the middleware (see [Access Token Middleware](#access-token-middleware)). For more information go to: https://developer.niceincontact.com/API/UserHubAPI#/User-Management
+* The adapter needs **local storage** to maintain the user's session with Incontact.
 * The response from escalation when there aren't available agents is defined in backstage, with the content titled **'No Agents Available'**. So this content should be modified in order to show the expected message.
 * For the use of **'Hours of Operation'**, a **'profileIdHoursOperation'** is needed, and it can be obtained from the Incontact platform in: _ACD -> Contact Settings -> Hours of Operation_ section, as long as there is defined hours.
 * For the use of **'Agents availability'**, a **'teamId'** is needed, and it can be obtained from the Incontact platform in: _Admin -> Teams_ section.
 * The **timers** defined in the configuration shouldn't be changed.
 
-### Access Token Middleware
+### PHP App Middleware
 
-This addapter uses a server side app (a PHP app middleware) which is used to generate the `access_token`, needed to execute all the requests to the Incontact APIs. This app is included in `./middleware` folder and you need to host it in a public server.
+This addapter uses a server side app (a PHP app middleware) which is used to execute all the request between browser SDK and Incontact (when agent availability is checked or when agent conversation is running). This app is included in `./middleware` folder and you need to host it in a public server.
 
-Update `.env` file (from `./middleware` folder) with the **accessKeyId** and **accessKeySecret** values. Pay attention to the `TOKEN` (any password-like value is ok), this is used as an extra security layer and the same value should be present in javascript configuration.
+In the root of `./middleware` folder, there is the `.env` file with the next content:
 
 ```
-ACCESS_KEY_ID="<accessKeyId>"
-ACCESS_KEY_SECRET="<accessKeySecret>"
-TOKEN="<customer_defined_token>"
-AUTH_URL="https://na1.nice-incontact.com/authentication/v1/token/access-key"
-DISCOVERY_URL="https://na1.nice-incontact.com/.well-known/cxone-configuration"
+ACCESS_KEY_ID=<AccessKeyId>
+ACCESS_KEY_SECRET=<AccessKeySecret>
+
+AUTH_URL=https://na1.nice-incontact.com/authentication/v1/token/access-key
+DISCOVERY_URL=https://na1.nice-incontact.com/.well-known/cxone-configuration
+API_VERSION=v12.0
+
+# Add white listed domains separeted by coma
+DOMAINS=
 ```
 
-`AUTH_URL` and `DISCOVERY_URL` should remain without any change, unless you are having troubles in the response (in this case validate with Incontact support if URLs are different).
+This is the explanation of every variable in `.env` file:
 
-Add the URL of the middleware and the `TOKEN` value inside the javascript configuration (in `var incontactConf`: `middlewareUrl` and `middlewareToken`).
+* **ACCESS_KEY_ID** and **ACCESS_KEY_SECRET** are the credentials to connect to Incontact and can be generated from an Incontact active user. In your Incontact platform, go to _My Profile -> Access Keys_ and click on "_Add access key_" button. For more information go to: https://developer.niceincontact.com/API/UserHubAPI#/User-Management
+* **AUTH_URL** this url should not be changed, unless otherwise specified by your Incontact support team.
+* **DISCOVERY_URL** this is the same like AUTH_URL, this url should not be changed, unless otherwise specified by your Incontact support team.
+* **API_VERSION** The connection to the Incontact API only works with the Patron API version **'v12.0'**
+* **DOMAIN** This is a whitelist domain. Add your domains here (separated by coma and without spaces) to allow the request from your SDK Chabot.
 
 This app uses next composer dependencies:
 * guzzlehttp/guzzle
 * vlucas/phpdotenv
 * ralouphie/getallheaders
+* klein/klein
 
 ### Configuration
 
@@ -78,10 +86,8 @@ var incontactConf = {
   enabled: true, // Enable inContact escalation
   profileIdHoursOperation: 0,
   teamId: 0,
-  version: 'v12.0',
-  agentWaitTimeout: 20, // seconds
-  getMessageTimeout: 20, // miliseconds
-  incontactSessionLifetime: 5, // minutes
+  agentWaitTimeout: 120, // seconds
+  getMessageTimeout: 30, // seconds
   agent: {
     name: 'Agent', // Agent name
     avatarImage: '' // Agent avatar image soure (file or base64), if empty inContact image will be used
@@ -95,8 +101,8 @@ var incontactConf = {
     chatRoomID: '',
     parameters: []
   },
-  middlewareUrl: '', // URL of the middleware in charge of creation of 'access_token'
-  middlewareToken: '' // Same as middleware project
+  middlewareUrl: '', // URL of the PHP middleware in charge of the execution of the Incontact API requests
+  oneRequestTranscript: true
 }
 ```
 
@@ -144,10 +150,8 @@ In the following example we're creating a chatbot with the InContact adapter:
         enabled: true, // Enable inContact escalation
         profileIdHoursOperation: 0,
         teamId: 0,
-        version: 'v12.0',
-        agentWaitTimeout: 20, // seconds
-        getMessageTimeout: 20,
-        incontactSessionLifetime: 3, // minutes
+        agentWaitTimeout: 120, // seconds
+        getMessageTimeout: 30, // seconds
         agent: {
           name: 'Incontact Agent', // Agent name
           avatarImage: '' // Agent avatar image soure (file or base64), if empty inContact image will be use
@@ -162,8 +166,8 @@ In the following example we're creating a chatbot with the InContact adapter:
           parameters: []
         }
       },
-      middlewareUrl: '', // URL of the middleware in charge of creation of 'access_token'
-      middlewareToken: '' // Same as middleware project
+      middlewareUrl: '', // URL of the PHP middleware in charge of the execution of the Incontact API requests
+      oneRequestTranscript: true //
     };
     ```
 * Add the adapter to the SDK adapters array (passing the adapter configuration object)
@@ -215,7 +219,10 @@ Here is the full integration code:
         userType: 0,
         lang:'en',
         labels: {
-          en: { 'interface-title': 'InContact Adapter' }
+          en: {
+            'interface-title': 'InContact Adapter'
+            'transcriptConversationTitle': 'Transcript Conversation'
+          }
         },
         closeButton: { visible: true },
         html: { 'custom-window-header': '<div></div>' },
@@ -227,10 +234,8 @@ Here is the full integration code:
         enabled: true, // Enable inContact escalation
         profileIdHoursOperation: 0,
         teamId: 0,
-        version: 'v12.0',
-        agentWaitTimeout: 20, // seconds
-        getMessageTimeout: 60, // seconds
-        incontactSessionLifetime: 3, // minutes
+        agentWaitTimeout: 120, // seconds
+        getMessageTimeout: 30, // seconds
         agent: {
           name: 'Incontact Agent', // Agent name
           avatarImage: '' // Agent avatar image soure (file or base64), if empty inContact image will be use
@@ -244,8 +249,8 @@ Here is the full integration code:
           chatRoomID: '',
           parameters: []
         },
-        middlewareUrl: '', // URL of the middleware in charge of creation of 'access_token'
-        middlewareToken: '' // Same as middleware project
+        middlewareUrl: '', // URL of the PHP middleware in charge of the execution of the Incontact API requests
+        oneRequestTranscript: true
       }
     }
 

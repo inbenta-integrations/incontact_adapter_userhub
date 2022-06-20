@@ -241,7 +241,7 @@ class IncontactApi
     }
 
     /**
-     * 
+     * Execute the end chat endpoint
      * @param array $queryParams
      * @return array
      */

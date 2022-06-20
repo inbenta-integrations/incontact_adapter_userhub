@@ -2,19 +2,24 @@
 
 namespace App;
 
+use App\SessionManager;
 use App\IncontactApi;
 use Klein\Response;
 
 class IncontactAction
 {
     protected $session;
-    protected $sessionToken;
+    protected $headers;
     protected $api;
 
-    public function __construct($session)
+    /**
+     * @param SessionManager $session
+     * @param array $headers
+     */
+    public function __construct(SessionManager $session, array $headers)
     {
         $this->session = $session;
-        $this->sessionToken = $this->session->getId();
+        $this->headers = $headers;
         $this->api = new IncontactApi();
         $this->getAccessToken();
     }
@@ -27,17 +32,15 @@ class IncontactAction
     {
         $accessKey = $this->session->get("access_token");
         if (!$accessKey) {
-            if (!$this->isExtraSession()) {
-                $accessKeyData = $this->api->getAccessKey();
-                if (!isset($accessKeyData["access_token"])) return false;
-                if (!isset($accessKeyData["token_type"])) return false;
+            $accessKeyData = $this->api->getAccessKey();
+            if (!isset($accessKeyData["access_token"])) return false;
+            if (!isset($accessKeyData["token_type"])) return false;
 
-                $apiEndpointData = $this->api->getApiEndpoint($accessKeyData["access_token"], $accessKeyData["token_type"]);
-                if (!isset($apiEndpointData['api_endpoint'])) return false;
+            $apiEndpointData = $this->api->getApiEndpoint($accessKeyData["access_token"], $accessKeyData["token_type"]);
+            if (!isset($apiEndpointData['api_endpoint'])) return false;
 
-                $accessKeyData["api_endpoint"] = $apiEndpointData["api_endpoint"];
-                $this->setSessionValues($accessKeyData, true);
-            }
+            $accessKeyData["api_endpoint"] = $apiEndpointData["api_endpoint"];
+            $this->setSessionValues($accessKeyData);
         } else if (!$this->validateTokenOnTime($this->session->get("expires_in"))) {
             $this->session->delete("access_token");
             return $this->getAccessToken();
@@ -51,9 +54,8 @@ class IncontactAction
     /**
      * Set the values for the session
      * @param array $accessKeyData
-     * @param bool $saveFile = true
      */
-    protected function setSessionValues(array $accessKeyData, bool $saveFile = false)
+    protected function setSessionValues(array $accessKeyData)
     {
         $accessKeyData["expires_in"] = $accessKeyData["expires_in"] + time();
         $this->session->set("access_token", $accessKeyData["access_token"]);
@@ -64,48 +66,6 @@ class IncontactAction
 
         $this->api->setCommonHeaders($accessKeyData["access_token"], $accessKeyData["token_type"]);
         $this->api->setApiEndpoint($accessKeyData["api_endpoint"]);
-
-        if ($saveFile) {
-            $fileName = sys_get_temp_dir() . "/" . $this->sessionToken;
-            $tmpFile = fopen($fileName, "w") or die;
-            fwrite($tmpFile, json_encode($accessKeyData));
-            fclose($tmpFile);
-        }
-    }
-
-    /**
-     * Validate if session is extra session
-     * @return bool
-     */
-    protected function isExtraSession(): bool
-    {
-        if (!$this->session->isExtraSession()) return false;
-
-        $data = $this->getInfoFromFile();
-        if (count($data) == 0) return false;
-
-        $this->setSessionValues($data);
-        return true;
-    }
-
-    /**
-     * Get information from file
-     * @return array
-     */
-    protected function getInfoFromFile(): array
-    {
-        $sessionToken = str_replace($_ENV['EXTRA_SESSION_SUFFIX'], '', $this->sessionToken);
-        $fileName = sys_get_temp_dir() . '/' . $sessionToken;
-
-        if (file_exists($fileName)) {
-            $handle = fopen($fileName, 'r');
-            $data = json_decode(fgets($handle), true);
-
-            if (isset($data["access_token"]) && isset($data["expires_in"]) && $this->validateTokenOnTime($data["expires_in"])) {
-                return $data;
-            }
-        }
-        return [];
     }
 
     /**
@@ -132,6 +92,10 @@ class IncontactAction
         if (isset($result["code"]) && $result["code"] > 0) {
             $response->code($result["code"]);
             unset($result["code"]);
+            if (isset($this->headers['Origin'])) {
+                header_remove("Access-Control-Allow-Origin");
+                $response->header('Access-Control-Allow-Origin', $this->headers['Origin']);
+            }
         }
         return $result;
     }
@@ -228,6 +192,8 @@ class IncontactAction
     {
         if (!isset($queryParams['chatSessionId'])) return $this->errorParamsResponse($response);
 
+        $this->session->sessionWriteClose();
+
         $data = $this->api->getResponse($queryParams);
         return $this->setCodeResponse($data, $response);
     }
@@ -258,13 +224,6 @@ class IncontactAction
         if (!isset($queryParams['chatSessionId'])) return $this->errorParamsResponse($response);
 
         $data = $this->api->endChat($queryParams);
-
-        $this->session->delete("access_token");
-        $sessionToken = str_replace($_ENV['EXTRA_SESSION_SUFFIX'], '', $this->sessionToken);
-
-        $fileName = sys_get_temp_dir() . "/" . $sessionToken;
-        if (file_exists($fileName)) @unlink($fileName);
-
         return $this->setCodeResponse($data, $response);
     }
 

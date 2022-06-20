@@ -173,11 +173,9 @@
 				enabled: true, // Enable inContact escalation
 				profileIdHoursOperation: 0,
 				teamId: 0,
-				version: 'v12.0',
-				agentWaitTimeout: 20, // seconds
+				agentWaitTimeout: 120, // seconds
 				outOfTimeDetection: "department is currently closed", //This string must exist in the non-business hours label configured in the application
-				getMessageTimeout: 60, // miliseconds
-				incontactSessionLifetime: 5, // minutes
+				getMessageTimeout: 30, // miliseconds
 				agent: {
 					name: 'Agent', // Agent name
 					avatarImage: '' // Agent avatar image soure (file or base64), if empty inContact image will be use
@@ -191,8 +189,8 @@
 					chatRoomID: '',
 					parameters: []
 				},
-                middlewareUrl: '', // URL of the middleware in charge of creation of 'access_token'
-                middlewareToken: '' // Same as middleware project
+                middlewareUrl: '', // URL of the middleware in charge of the execution of the Incontact API requests
+                oneRequestTranscript: true 
 			}
 		}
 

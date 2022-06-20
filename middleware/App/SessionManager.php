@@ -3,16 +3,18 @@
 namespace App;
 
 use Exception;
-use Symfony\Component\HttpFoundation\Session\Session;
 
 class SessionManager
 {
     protected $headers;
     protected $session;
 
-    public function __construct()
+    /**
+     * @param array $headers
+     */
+    public function __construct(array $headers)
     {
-        $this->headers = getallheaders();
+        $this->headers = $headers;
         $this->validateOrigin();
         $this->validateToken();
         $this->createSession();
@@ -26,9 +28,12 @@ class SessionManager
     {
         if (!isset($this->headers['Origin'])) return;
         if ($this->headers['Origin'] === '') return;
+        if (!isset($_ENV['DOMAINS']) || $_ENV['DOMAINS'] === '') {
+            throw new Exception("Domain error");
+        }
 
         $origin = str_replace(['https://', 'http://'], '', $this->headers['Origin']);
-        $domains = explode(',', str_replace('', '', $_ENV['DOMAINS']));
+        $domains = explode(',', str_replace(' ', '', $_ENV['DOMAINS']));
         if (!in_array($origin, $domains)) {
             throw new Exception("Domain error");
         }
@@ -52,24 +57,11 @@ class SessionManager
     protected function createSession(): void
     {
         $sessionToken = $this->headers['X-Inbenta-Token'];
+        session_id($sessionToken);
 
-        $this->session = new Session();
-        $this->session->setId($sessionToken);
-
-        if (count($this->session->all()) == 0) {
-            $this->session->start();
+        if (!isset($_SESSION)) {
+            session_start();
         }
-    }
-
-    /**
-     * Validate if session is an extra session
-     * @return bool
-     */
-    public function isExtraSession(): bool
-    {
-        $sessionToken = $this->session->getId();
-        $suffix = $_ENV['EXTRA_SESSION_SUFFIX'];
-        return strpos($sessionToken, $suffix) > 0;
     }
 
     /**
@@ -78,7 +70,7 @@ class SessionManager
      */
     public function getId(): string
     {
-        return $this->session->getId();
+        return session_id();
     }
 
     /**
@@ -87,8 +79,7 @@ class SessionManager
      */
     public function clean(): array
     {
-        $this->session->clear();
-        return [];
+        return $_SESSION = [];
     }
 
     /**
@@ -98,7 +89,7 @@ class SessionManager
      */
     public function get($key)
     {
-        return !($this->session->get($key)) ? $this->session->get($key) : false;
+        return isset($_SESSION[$key]) ? $_SESSION[$key] : false;
     }
 
     /**
@@ -108,7 +99,7 @@ class SessionManager
      */
     public function set($key, $value): void
     {
-        $this->session->set($key, $value);
+        $_SESSION[$key] = $value;
     }
 
     /**
@@ -117,6 +108,11 @@ class SessionManager
      */
     public function delete($key): void
     {
-        $this->session->remove($key);
+        unset($_SESSION[$key]);
+    }
+
+    public function sessionWriteClose()
+    {
+        session_write_close();
     }
 }

@@ -5,11 +5,12 @@
  * @param {Object} incontactConf [InContact APP configuration]
  *
  */
-var inbentaIncontactAdapter = function(incontactConf) {
+var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
 
     let workingTime = true;
     let agentActive = false;
     let showNoAgentsAvailable = false;
+    let inbentaChatbotSession = '';
 
     if (!incontactConf.enabled) {
         return function() {};
@@ -30,24 +31,13 @@ var inbentaIncontactAdapter = function(incontactConf) {
      */
     var IncontactSession = {
         get: function(key) {
-            var cookieObj = {};
-            document.cookie.split(';').forEach(function(cookiePair) {
-                let index = cookiePair.indexOf('=');
-                cookieObj[cookiePair.slice(0, index).trim()] = cookiePair.slice(index + 1, cookiePair.length).trim();
-            });
-            dd('cookies.get: ' + key + ':' + cookieObj[key], 'background: #222; color: #BADA55');
-            return cookieObj[key];
+            return localStorage.getItem(key);
         },
         set: function(key, value) {
-            const currentTime = new Date().getTime();
-            dd('cookies.set: ' + key + ':' + value, 'background: #222; color: #BADA55');
-            const expires = new Date(currentTime + incontactConf.incontactSessionLifetime * 60000);
-            document.cookie = key + '=' + value + '; expires=' + expires + '; path=/';
+            localStorage.setItem(key, value);
         },
         delete: function(key) {
-            var expired = new Date().getTime() - 3600; // Set it to 1h before to auto-expire it
-            dd('cookies.delete: ' + key, 'background: #222; color: #BADA55');
-            document.cookie = key + '=; expires=' + expired + '; path=/';
+            localStorage.removeItem(key);
         }
     };
 
@@ -81,10 +71,6 @@ var inbentaIncontactAdapter = function(incontactConf) {
         window.chatbotHelper = chatbot;
         // Initialize inContact auth object
         var auth = {
-            tokenUrl: incontactConf.middlewareUrl,
-            middlewareToken: incontactConf.middlewareToken,
-            accessToken: '',
-            resourceBaseUrl: '',
             chatSessionId: '',
             isManagerConnected: false,
             closedOnTimeout: true,
@@ -101,25 +87,7 @@ var inbentaIncontactAdapter = function(incontactConf) {
          */
         var connectToIncontact = function() {
             incontactSessionOn = true;
-            // Initiate inContact auth
-            updateToken(
-                function(resp) {
-                    auth.accessToken = resp.access_token;
-                    auth.resourceBaseUrl = auth.resourceBaseUrl === '' ? resp.resource_server_base_uri : auth.resourceBaseUrl;
-                    IncontactSession.set('incontactAccessToken', auth.accessToken);
-                    IncontactSession.set('incontactResourceBaseUrl', auth.resourceBaseUrl);
-                    // Get inContact chat profile info
-                    getChatProfile();
-                    // Create inContact chat room
-                    makeChat(function(resp) {
-                        workingTime = true;
-                        auth.chatSessionId = resp.chatSessionId;
-                        IncontactSession.set('inbentaIncontactActive', 'active');
-                        IncontactSession.set('incontactChatSessionId', auth.chatSessionId);
-                        getChatText();
-                    });
-                }
-            );
+            startChat();
             auth.closedOnTimeout = false;
             // Start "no agents" timeout
             auth.timers.noAgents = setTimeout(function() {
@@ -133,22 +101,18 @@ var inbentaIncontactAdapter = function(incontactConf) {
             }, incontactConf.agentWaitTimeout * 1000);
         };
 
-        /*
-         * Update (or create) inContact token [request]
-         */
-        var updateToken = function(callback) {
-            var options = {
-                type: 'POST',
-                url: auth.tokenUrl,
-                async: true,
-                headers: { 'X-Inbenta-Token': auth.middlewareToken },
-                data: JSON.stringify({
-                    'getUrl': !(auth.resourceBaseUrl !== '')
-                })
-            };
-
-            requestCall(options, callback);
-        };
+        function startChat() {
+            // Get inContact chat profile info
+            getChatProfile();
+            // Create inContact chat room
+            makeChat(function(resp) {
+                workingTime = true;
+                auth.chatSessionId = resp.chatSessionId;
+                IncontactSession.set('inbentaIncontactActive', 'active');
+                IncontactSession.set('incontactChatSessionId', auth.chatSessionId);
+                getChatText();
+            });
+        }
 
         /*
          * Get inContact chat profile info [request]
@@ -156,10 +120,9 @@ var inbentaIncontactAdapter = function(incontactConf) {
         var getChatProfile = function() {
             var options = {
                 type: 'GET',
-                url: auth.resourceBaseUrl + 'services/' + incontactConf.version + '/points-of-contact/' + incontactConf.payload.pointOfContact + '/chat-profile',
+                url: incontactConf.middlewareUrl + '/chat-profile?pointOfContact=' + incontactConf.payload.pointOfContact,
                 async: true
             };
-
             var request = requestCall(options);
             request.onload = request.onerror = function() {
                 if (!this.response) {
@@ -186,7 +149,7 @@ var inbentaIncontactAdapter = function(incontactConf) {
         var makeChat = function(callback) {
             var options = {
                 type: 'POST',
-                url: auth.resourceBaseUrl + 'services/' + incontactConf.version + '/contacts/chats',
+                url: incontactConf.middlewareUrl + '/make-chat',
                 async: true,
                 data: JSON.stringify(incontactConf.payload)
             };
@@ -204,10 +167,9 @@ var inbentaIncontactAdapter = function(incontactConf) {
             clearTimeout(auth.timers.getChatText);
             var options = {
                 type: 'GET',
-                url: auth.resourceBaseUrl + 'services/' + incontactConf.version + '/contacts/chats/' + auth.chatSessionId + '?timeout=' + incontactConf.getMessageTimeout,
+                url: incontactConf.middlewareUrl + '/get-response?timeout=' + incontactConf.getMessageTimeout + '&chatSessionId=' + auth.chatSessionId,
                 async: true
             };
-
             var request = requestCall(options);
             request.onload = request.onerror = function() {
                 if (!this.response) {
@@ -216,6 +178,7 @@ var inbentaIncontactAdapter = function(incontactConf) {
                 var resp = (this.response) ? JSON.parse(this.response) : {};
                 if (resp.chatSession) auth.chatSessionId = resp.chatSession;
                 if (workingTime && auth.activeChat) IncontactSession.set('incontactChatSessionId', auth.chatSessionId);
+                if (resp.error !== undefined) return;
                 resp.messages.forEach(function(message) {
                     if (typeof message.Type !== 'undefined' && typeof message.Status !== 'undefined' && message.Status === 'Waiting') {
                         // in waiting we send chat, to connect with incontact
@@ -275,14 +238,13 @@ var inbentaIncontactAdapter = function(incontactConf) {
 
             var options = {
                 type: 'POST',
-                url: auth.resourceBaseUrl + 'services/' + incontactConf.version + '/contacts/chats/' + auth.chatSessionId + '/send-text',
+                url: incontactConf.middlewareUrl + '/send-text?chatSessionId=' + auth.chatSessionId,
                 async: async,
                 data: JSON.stringify({
                     'label': (author === 'undefined') ? incontactConf.defaultUserName : author,
                     'message': message
                 })
             };
-
             requestCall(options, callback, callbackData);
         };
 
@@ -294,6 +256,24 @@ var inbentaIncontactAdapter = function(incontactConf) {
             dd("--- sendMultipleMessagesToIncontact ---");
             dd(messageArray);
             if (messageArray.length > 0) {
+                if (incontactConf.oneRequestTranscript) {
+                    var transcriptConversationTitle = sdkConfig.labels[sdkConfig.lang].transcriptConversationTitle ?? 'Transcript';
+                    var options = {
+                        type: 'POST',
+                        url: incontactConf.middlewareUrl + '/send-text?chatSessionId=' + auth.chatSessionId,
+                        async: false,
+                        data: JSON.stringify({
+                            'messages': messageArray,
+                            'assistant': incontactConf.defaultChatbotName,
+                            'guest': incontactConf.payload.fromName ? incontactConf.payload.fromName : incontactConf.defaultUserName,
+                            'system': incontactConf.defaultSystemName,
+                            'transcriptConversationText': transcriptConversationTitle
+                        })
+                    };
+                    requestCall(options);
+                    return;
+                }
+
                 var messageObj = messageArray[0];
                 var author = '';
                 switch (messageObj.user) {
@@ -326,9 +306,8 @@ var inbentaIncontactAdapter = function(incontactConf) {
             if (auth.chatSessionId === '' || !workingTime) return;
 
             var options = {
-                type: 'DELETE',
-                url: auth.resourceBaseUrl + 'services/' + incontactConf.version + '/contacts/chats/' + auth.chatSessionId,
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                type: 'POST',
+                url: incontactConf.middlewareUrl + '/end-chat?chatSessionId=' + auth.chatSessionId
             };
             auth.activeChat = false;
             requestCall(options, finishChat);
@@ -342,7 +321,7 @@ var inbentaIncontactAdapter = function(incontactConf) {
             agentActive = false;
             clearTimeout(auth.timers.noAgents);
             clearTimeout(auth.timers.getChatText);
-            removeIncontactCookies(['inbentaIncontactActive', 'incontactAccessToken', 'incontactResourceBaseUrl', 'incontactChatSessionId']);
+            removeIncontactCookies(['inbentaIncontactActive', 'incontactAccessToken', 'incontactResourceBaseUrl', 'incontactChatSessionId', 'inbentaChatbotSession']);
             chatbot.actions.hideChatbotActivity();
             if (!showNoAgentsAvailable) {
                 enterQuestion();
@@ -358,11 +337,11 @@ var inbentaIncontactAdapter = function(incontactConf) {
             var xmlhttp = new XMLHttpRequest();
             requestOptions.async = true;
             if (!requestOptions.headers) requestOptions.headers = {};
-            if (!requestOptions.headers['Authorization'] && requestOptions.url !== auth.tokenUrl) {
-                requestOptions.headers['Authorization'] = 'bearer ' + auth.accessToken;
+            if (!requestOptions.headers['X-Inbenta-Token']) {
+                requestOptions.headers['X-Inbenta-Token'] = inbentaChatbotSession;
             }
             if (requestOptions.headers['Content-Type'] === undefined) {
-                requestOptions.headers['Content-Type'] = 'application/json; charset=utf-8';
+                requestOptions.headers['Content-Type'] = 'application/json';
             }
 
             xmlhttp.onreadystatechange = function() {
@@ -413,19 +392,18 @@ var inbentaIncontactAdapter = function(incontactConf) {
                     if (!auth.closedOnTimeout) auth.timers.getChatText = setTimeout(getChatText, incontactConf.getMessageTimeout);
                 },
                 202: {},
-                304: function() {
+                204: function() {
                     if (!auth.closedOnTimeout) auth.timers.getChatText = setTimeout(getChatText, incontactConf.getMessageTimeout);
                 },
                 400: genericError,
                 401: genericError,
-                404: agentLeft
+                404: agentLeft,
+                500: genericError
             };
             switch (url) {
-                case auth.tokenUrl:
-                    return {};
-                case auth.resourceBaseUrl + 'services/' + incontactConf.version + '/contacts/chats': // post-/contacts/chats
-                case auth.resourceBaseUrl + 'services/' + incontactConf.version + '/contacts/chats/' + auth.chatSessionId + '?timeout=' + incontactConf.getMessageTimeout: // get-/contacts/chats/{chatSession}
-                case auth.resourceBaseUrl + 'services/' + incontactConf.version + '/contacts/chats/' + auth.chatSessionId + '/send-text': // post-/contacts/chats/{chatSession}/send-text
+                case incontactConf.middlewareUrl + '/make-chat':
+                case incontactConf.middlewareUrl + '/get-response?timeout=' + incontactConf.getMessageTimeout + '&chatSessionId=' + auth.chatSessionId:
+                case incontactConf.middlewareUrl + '/send-text?chatSessionId=' + auth.chatSessionId:
                     return httpCodeErrors;
                 default:
                     return {};
@@ -495,31 +473,12 @@ var inbentaIncontactAdapter = function(incontactConf) {
         }
 
         /**
-         * Get the token to validate the availability of agents
-         * @param {Object} response 
-         */
-        function tokenForActiveAgents(response) {
-            if (response.resource_server_base_uri !== undefined && response.resource_server_base_uri !== '') {
-                auth.resourceBaseUrl = auth.resourceBaseUrl === '' ? response.resource_server_base_uri : auth.resourceBaseUrl;
-                auth.accessToken = response.access_token;
-                const chatBotmessageData = {
-                    type: 'answer',
-                    message: '<em>Looking for agents</em>',
-                }
-                chatbot.actions.displayChatbotMessage(chatBotmessageData);
-                lookForOperationHours();
-            } else { //Continue with the escalation if we can't check for the token and url
-                continueWithEscalation();
-            }
-        }
-
-        /**
          * Validate the operation hours
          */
         function lookForOperationHours() {
             var options = {
                 type: 'GET',
-                url: auth.resourceBaseUrl + 'services/' + incontactConf.version + '/hours-of-operation' + (incontactConf.profileIdHoursOperation > 0 ? '/' + incontactConf.profileIdHoursOperation : ''),
+                url: incontactConf.middlewareUrl + '/hours-of-operation' + (incontactConf.profileIdHoursOperation > 0 ? '?profileIdHoursOperation=' + incontactConf.profileIdHoursOperation : ''),
                 async: true,
                 data: {}
             };
@@ -597,10 +556,10 @@ var inbentaIncontactAdapter = function(incontactConf) {
          * Search if there are agents available
          */
         function lookForActiveAgents() {
-            var queryString = 'fields=agentStateId,isActive,agentStateName,firstName,teamId,agentId&top=200'
+            var queryString = 'fields=agentStateId,isActive,agentStateName,firstName,lastName,teamId,agentId,skillId&top=200&teamId=' + incontactConf.teamId
             var options = {
                 type: 'GET',
-                url: auth.resourceBaseUrl + 'services/' + incontactConf.version + '/agents/states?' + queryString,
+                url: incontactConf.middlewareUrl + '/agents-availability?' + queryString,
                 async: true,
                 data: {}
             };
@@ -611,6 +570,7 @@ var inbentaIncontactAdapter = function(incontactConf) {
                         if ((incontactConf.teamId == response.agentStates[key].teamId || incontactConf.teamId == 0) &&
                             response.agentStates[key].agentStateId === 1 && response.agentStates[key].agentStateName === 'Available'
                         ) {
+                            //console.log(response.agentStates[key]);
                             agentActive = true;
                             return false;
                         }
@@ -704,7 +664,14 @@ var inbentaIncontactAdapter = function(incontactConf) {
                     escalationOffer = false;
                     chatbot.actions.disableInput();
                     chatbot.actions.displayChatbotActivity();
-                    updateToken(tokenForActiveAgents); // Execute in order to get the "accessToken" and "resourceBaseUrl"
+
+                    const chatBotmessageData = {
+                        type: 'answer',
+                        message: '<em>Looking for agents</em>',
+                    }
+                    chatbot.actions.displayChatbotMessage(chatBotmessageData);
+                    lookForOperationHours();
+
                     return false;
                 }
                 escalationOffer = false;
@@ -737,16 +704,6 @@ var inbentaIncontactAdapter = function(incontactConf) {
             return next(messageData);
         });
 
-        // Handle generic error
-        chatbot.subscriptions.onSelectSystemMessageOption(function(optionData, next) {
-            dd("---onSelectSystemMessageOption---");
-            if (optionData.option.value === 'try-again') {
-                enterQuestion();
-            } else {
-                return next(optionData);
-            }
-        });
-
         // Finish looking for agents Timeout
         chatbot.subscriptions.onResetSession(function(next) {
             dd("---onResetSession---");
@@ -759,11 +716,17 @@ var inbentaIncontactAdapter = function(incontactConf) {
         // Handle inContact session/no-session on refresh
         chatbot.subscriptions.onReady(function(next) {
             dd("---onReady---");
+            var sessionData = chatbot.actions.getSessionData();
+            if (sessionData) {
+                var inbentaChatbotSessionTmp = IncontactSession.get('inbentaChatbotSession');
+                inbentaChatbotSession = sessionData.sessionId;
+                IncontactSession.set('inbentaChatbotSession', inbentaChatbotSession);
+                if (inbentaChatbotSessionTmp !== inbentaChatbotSession) {
+                    removeIncontactCookies(['inbentaIncontactActive', 'incontactAccessToken', 'incontactResourceBaseUrl', 'incontactChatSessionId', 'inbentaChatbotSession']);
+                }
+            }
             var statusChat = IncontactSession.get('inbentaIncontactActive');
-
             if (statusChat === 'active') {
-                auth.accessToken = IncontactSession.get('incontactAccessToken');
-                auth.resourceBaseUrl = IncontactSession.get('incontactResourceBaseUrl');
                 auth.chatSessionId = IncontactSession.get('incontactChatSessionId');
                 incontactSessionOn = true;
                 auth.closedOnTimeout = false;
@@ -772,9 +735,9 @@ var inbentaIncontactAdapter = function(incontactConf) {
             }
         });
 
-        // Clear inContact chatSession on exitConversation
         chatbot.subscriptions.onSelectSystemMessageOption(function(optionData, next) {
             if (optionData.id === 'exitConversation' && optionData.option.value === 'yes' && incontactSessionOn === true) {
+                // Clear inContact chatSession on exitConversation
                 clearTimeout(auth.timers.getChatText);
                 incontactSessionOn = false;
                 auth.closedOnTimeout = true;
@@ -785,25 +748,32 @@ var inbentaIncontactAdapter = function(incontactConf) {
                     message: 'chat-closed', // Message can be customized in SDKconf -> labels
                     translate: true
                 });
+            } else if (optionData.option.value === 'try-again') {
+                // Handle generic error
+                enterQuestion();
             } else {
                 return next(optionData);
             }
         });
 
         // DATA KEYS LOG
-        // Contact Attended log on agent join conversation system message
         chatbot.subscriptions.onDisplaySystemMessage(function(messageData, next) {
+            // Contact Attended log on agent join conversation system message
             if (messageData.message === 'agent-joined') {
                 chatbot.api.track('CHAT_ATTENDED', { value: 'TRUE' });
-            }
-            return next(messageData);
-        });
-        // Contact Unattended log on no agent available system message
-        chatbot.subscriptions.onDisplaySystemMessage(function(messageData, next) {
-            if (messageData.message === 'no-agents') {
+            } 
+            // Contact Unattended log on no agent available system message
+            else if (messageData.message === 'no-agents') {
                 chatbot.api.track('CHAT_NO_AGENTS', { value: 'TRUE' });
             }
             return next(messageData);
+        });
+
+        chatbot.subscriptions.onStartConversation(function(conversationData, next) {
+            if (conversationData.sessionId !== undefined && conversationData.sessionId !== '') {
+                inbentaChatbotSession = conversationData.sessionId;
+                IncontactSession.set('inbentaChatbotSession', inbentaChatbotSession);
+            }
         });
     }
 }
