@@ -32,7 +32,7 @@ class SessionManager
             throw new Exception("Domain error");
         }
 
-        $origin = str_replace(['https://', 'http://'], '', $this->headers['Origin']);
+        $origin = str_replace(['https://', 'http://', 'www.'], '', $this->headers['Origin']);
         $domains = explode(',', str_replace(' ', '', $_ENV['DOMAINS']));
         if (!in_array($origin, $domains)) {
             throw new Exception("Domain error");

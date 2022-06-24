@@ -2,6 +2,7 @@
 
 namespace App;
 
+use Exception;
 use App\SessionManager;
 use App\IncontactApi;
 use Klein\Response;
@@ -33,6 +34,11 @@ class IncontactAction
         $accessKey = $this->session->get("access_token");
         if (!$accessKey) {
             $accessKeyData = $this->api->getAccessKey();
+
+            if (isset($accessKeyData["error"])) {
+                throw new Exception($accessKeyData["error"]);
+            }
+
             if (!isset($accessKeyData["access_token"])) return false;
             if (!isset($accessKeyData["token_type"])) return false;
 

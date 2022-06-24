@@ -93,6 +93,11 @@ class IncontactApi
             ]
         ];
         $response = $this->makeRequest('post', $this->env['AUTH_URL'], $headers, $data);
+
+        if (isset($response["error"]) && isset($response["error"]->details)) {
+            return ["error" => $response["error"]->details];
+        }
+
         if (isset($response['code'])) unset($response['code']);
         if (isset($response['id_token'])) unset($response['id_token']);
         return $response;
