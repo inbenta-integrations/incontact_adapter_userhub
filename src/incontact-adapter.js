@@ -3,7 +3,7 @@
  * InContact documentation: https://developer.niceincontact.com/API/PatronAPI
  *
  * @param {Object} incontactConf [InContact APP configuration]
- *
+ * @param {Object} sdkConfig [SDK configuration]
  */
 var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
 
@@ -11,12 +11,23 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
     let agentActive = false;
     let showNoAgentsAvailable = false;
     let inbentaChatbotSession = '';
+    let oneRequestTranscript = incontactConf.oneRequestTranscript == undefined ? true : incontactConf.oneRequestTranscript;
 
     if (!incontactConf.enabled) {
         return function() {};
     } else if (!incontactConf.payload.pointOfContact) {
         console.warn('InContact adapter is misconfigured, therefore it has been disabled.');
         console.warn('Make sure pointOfContact is configured.');
+    }
+    if (sdkConfig == null) {
+        sdkConfig = {
+            lang: 'en',
+            labels: {
+                en: {
+                    'transcriptConversationTitle': 'Transcript Conversation'
+                }
+            }
+        }
     }
 
     // Initialize inContact session on/off variable
@@ -179,6 +190,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                 if (resp.chatSession) auth.chatSessionId = resp.chatSession;
                 if (workingTime && auth.activeChat) IncontactSession.set('incontactChatSessionId', auth.chatSessionId);
                 if (resp.error !== undefined) return;
+                if (resp.messages === undefined || resp.messages === null) return;
                 resp.messages.forEach(function(message) {
                     if (typeof message.Type !== 'undefined' && typeof message.Status !== 'undefined' && message.Status === 'Waiting') {
                         // in waiting we send chat, to connect with incontact
@@ -214,6 +226,9 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                                     if (message.Text !== 'Hello, what is your name?') {
                                         auth.firstQuestion = message.Text;
                                     }
+                                } else if (message.Text === '$Localized:ChatSessionEnded') {
+                                    clearTimeout(auth.timers.getChatText);
+                                    agentLeft()
                                 }
                         }
                     } else if (typeof message.PartyTypeValue !== 'undefined' && typeof message.Type !== 'undefined' && message.Type === 'AgentTyping') {
@@ -223,7 +238,6 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                             chatbot.actions.hideChatbotActivity();
                         }
                     }
-
                 });
             };
         };
@@ -256,7 +270,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
             dd("--- sendMultipleMessagesToIncontact ---");
             dd(messageArray);
             if (messageArray.length > 0) {
-                if (incontactConf.oneRequestTranscript) {
+                if (oneRequestTranscript) {
                     var transcriptConversationTitle = sdkConfig.labels[sdkConfig.lang].transcriptConversationTitle ?? 'Transcript';
                     var options = {
                         type: 'POST',
