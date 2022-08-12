@@ -11,6 +11,8 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
     let agentActive = false;
     let showNoAgentsAvailable = false;
     let inbentaChatbotSession = '';
+    let getMessageTimeout = 24; // Second to await for a new message
+    let errorResponse = 0;
     let oneRequestTranscript = incontactConf.oneRequestTranscript == undefined ? true : incontactConf.oneRequestTranscript;
 
     if (!incontactConf.enabled) {
@@ -24,7 +26,10 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
             lang: 'en',
             labels: {
                 en: {
-                    'transcriptConversationTitle': 'Transcript Conversation'
+                    'transcriptConversationTitle': 'Transcript Conversation',
+                    'disconnectionError': 'Oops! The agent got disconnected. Please try connecting again if your query is still unanswered',
+                    'outOfTimeMessage': 'There are no agents available at this moment',
+                    'operationClosed': 'The operation for today is CLOSED'
                 }
             }
         }
@@ -115,6 +120,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         function startChat() {
             // Get inContact chat profile info
             getChatProfile();
+            errorResponse = 0;
             // Create inContact chat room
             makeChat(function(resp) {
                 workingTime = true;
@@ -178,11 +184,12 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
             clearTimeout(auth.timers.getChatText);
             var options = {
                 type: 'GET',
-                url: incontactConf.middlewareUrl + '/get-response?timeout=' + incontactConf.getMessageTimeout + '&chatSessionId=' + auth.chatSessionId,
+                url: incontactConf.middlewareUrl + '/get-response?timeout=' + getMessageTimeout + '&chatSessionId=' + auth.chatSessionId,
                 async: true
             };
             var request = requestCall(options);
-            request.onload = request.onerror = function() {
+            request.onload = function() {
+                errorResponse = 0;
                 if (!this.response) {
                     return;
                 }
@@ -239,6 +246,13 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                         }
                     }
                 });
+            };
+
+            request.onerror = function() {
+                if (!this.response) {
+                    validateResponseError();
+                    return;
+                }
             };
         };
 
@@ -333,6 +347,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
             incontactSessionOn = false;
             auth.closedOnTimeout = true;
             agentActive = false;
+            errorResponse = 0;
             clearTimeout(auth.timers.noAgents);
             clearTimeout(auth.timers.getChatText);
             removeIncontactCookies(['inbentaIncontactActive', 'incontactAccessToken', 'incontactResourceBaseUrl', 'incontactChatSessionId', 'inbentaChatbotSession']);
@@ -403,11 +418,11 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                             if (text && text.includes(incontactConf.outOfTimeDetection)) return outOfTime(text);
                         });
                     }
-                    if (!auth.closedOnTimeout) auth.timers.getChatText = setTimeout(getChatText, incontactConf.getMessageTimeout);
+                    if (!auth.closedOnTimeout) auth.timers.getChatText = setTimeout(getChatText, getMessageTimeout);
                 },
                 202: {},
                 204: function() {
-                    if (!auth.closedOnTimeout) auth.timers.getChatText = setTimeout(getChatText, incontactConf.getMessageTimeout);
+                    if (!auth.closedOnTimeout) auth.timers.getChatText = setTimeout(getChatText, getMessageTimeout);
                 },
                 400: genericError,
                 401: genericError,
@@ -416,7 +431,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
             };
             switch (url) {
                 case incontactConf.middlewareUrl + '/make-chat':
-                case incontactConf.middlewareUrl + '/get-response?timeout=' + incontactConf.getMessageTimeout + '&chatSessionId=' + auth.chatSessionId:
+                case incontactConf.middlewareUrl + '/get-response?timeout=' + getMessageTimeout + '&chatSessionId=' + auth.chatSessionId:
                 case incontactConf.middlewareUrl + '/send-text?chatSessionId=' + auth.chatSessionId:
                     return httpCodeErrors;
                 default:
@@ -436,6 +451,21 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
             });
             workingTime = false;
             return {};
+        }
+
+        /**
+         * If the response checker has an error, validate if execute again the request o ends chat
+         */
+        function validateResponseError() {
+            if (incontactSessionOn) {
+                errorResponse++;
+                if (!auth.closedOnTimeout && errorResponse == 1) {
+                    auth.timers.getChatText = setTimeout(getChatText, getMessageTimeout);
+                } else {
+                    chatbot.actions.displaySystemMessage({ message: sdkConfig.labels[sdkConfig.lang].disconnectionError, translate: false });
+                    endChatSession();
+                }
+            }
         }
 
         /*
@@ -541,7 +571,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                                     i = response.resultSet.hoursOfOperationProfiles.length;
                                     return false;
                                 }
-                                outOfTimeMessage = 'There are no agents available at this moment';
+                                outOfTimeMessage = sdkConfig.labels[sdkConfig.lang].outOfTimeMessage;
                                 outOfTime = true;
                                 return false;
                             }
@@ -549,7 +579,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                     }
                     if (closed) {
                         validHours = false;
-                        chatbot.actions.displaySystemMessage({ message: 'The operation for today is CLOSED', translate: false });
+                        chatbot.actions.displaySystemMessage({ message: sdkConfig.labels[sdkConfig.lang].operationClosed, translate: false });
                         finishChat();
                         return false;
                     }
@@ -620,7 +650,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         var retrieveLastMessages = function() {
             var transcript = chatbot.actions.getConversationTranscript();
             sendMultipleMessagesToIncontact(transcript);
-            auth.timers.getChatText = setTimeout(getChatText, incontactConf.getMessageTimeout);
+            auth.timers.getChatText = setTimeout(getChatText, getMessageTimeout);
         };
 
         /*
@@ -745,7 +775,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                 incontactSessionOn = true;
                 auth.closedOnTimeout = false;
                 getChatProfile();
-                auth.timers.getChatText = setTimeout(getChatText, incontactConf.getMessageTimeout);
+                auth.timers.getChatText = setTimeout(getChatText, getMessageTimeout);
             }
         });
 

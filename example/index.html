@@ -144,72 +144,74 @@
 	<!-- INBENTA CHATBOT SDK-->
 	<script type="text/javascript">
 
-		/*** Inbenta chatbot SDK configuration and build ***/
-		var inbApp = {
-			// Inbenta chatbot SDK credentials
-			sdkAuth: {
-				inbentaKey: '',
-				domainKey: ''
-			},
-			// Inbenta chatbot SDK configuration
-			sdkConfig: {
-				chatbotId: 'incontact_chatbot',
-				environment: 'development',
-				userType: 0,
-				lang: 'en',
-				labels: {
-					en: {
+        /*** Inbenta chatbot SDK configuration and build ***/
+        var inbApp = {
+            // Inbenta chatbot SDK credentials
+            sdkAuth: {
+                inbentaKey: '',
+                domainKey: ''
+            },
+            // Inbenta chatbot SDK configuration
+            sdkConfig: {
+                chatbotId: 'incontact_chatbot',
+                environment: 'development',
+                userType: 0,
+                lang: 'en',
+                labels: {
+                    en: {
                         'interface-title': 'InContact Adapter',
-                        'transcriptConversationTitle': 'Transcript Conversation'
+                        'transcriptConversationTitle': 'Transcript Conversation',
+                        'disconnectionError': 'Oops! The agent got disconnected. Please try connecting again if your query is still unanswered',
+                        'outOfTimeMessage': 'There are no agents available at this moment',
+                        'operationClosed': 'The operation for today is CLOSED'
                     }
-				},
-				closeButton: { visible: true },
-				html: { 'custom-window-header': '<div></div>' },
-				adapters: []
-			},
-			// Incontact Adapter conf
-			incontactConf: {
-				debugMode: false,
-				enabled: true, // Enable inContact escalation
-				profileIdHoursOperation: 0,
-				teamId: 0,
-				agentWaitTimeout: 120, // seconds
-				outOfTimeDetection: "department is currently closed", //This string must exist in the non-business hours label configured in the application
-				getMessageTimeout: 30, // miliseconds
-				agent: {
-					name: 'Agent', // Agent name
-					avatarImage: '' // Agent avatar image soure (file or base64), if empty inContact image will be use
-				},
-				defaultUserName: 'User', //name displayed for user in incontact in case there is no form on escalate
-				defaultChatbotName: 'Chatbot', //name displayed for chatbot messages in incontact 
-				defaultSystemName: 'System', //name displayed for chatbot system messages in incontact 
-				payload: {
-					pointOfContact: '',
-					fromAddress: '',
-					chatRoomID: '',
-					parameters: []
-				},
+                },
+                closeButton: { visible: true },
+                html: { 'custom-window-header': '<div></div>' },
+                adapters: []
+            },
+            // Incontact Adapter conf
+            incontactConf: {
+                debugMode: false,
+                enabled: true, // Enable inContact escalation
+                profileIdHoursOperation: 0,
+                teamId: 0,
+                agentWaitTimeout: 120, // seconds
+                outOfTimeDetection: "department is currently closed", //This string must exist in the non-business hours label configured in the application
+                agent: {
+                    name: 'Agent', // Agent name
+                    avatarImage: '' // Agent avatar image soure (file or base64), if empty inContact image will be use
+                },
+                defaultUserName: 'User', //name displayed for user in incontact in case there is no form on escalate
+                defaultChatbotName: 'Chatbot', //name displayed for chatbot messages in incontact 
+                defaultSystemName: 'System', //name displayed for chatbot system messages in incontact 
+                payload: {
+                    pointOfContact: '',
+                    fromAddress: '',
+                    chatRoomID: '',
+                    parameters: []
+                },
                 middlewareUrl: '', // URL of the middleware in charge of the execution of the Incontact API requests
                 oneRequestTranscript: true 
-			}
-		}
+            }
+        }
 
-		// Add adapters
-		window.inbApp.sdkConfig.adapters.push(
-			/*
-			 * InContact adapter must be pushed before escalation adapters
-			 * Uncomment below the escalation adatper to use
-			 */
-			inbentaIncontactAdapter(inbApp.incontactConf, inbApp.sdkConfig),
+        // Add adapters
+        window.inbApp.sdkConfig.adapters.push(
+            /*
+            * InContact adapter must be pushed before escalation adapters
+            * Uncomment below the escalation adatper to use
+            */
+            inbentaIncontactAdapter(inbApp.incontactConf, inbApp.sdkConfig),
 
-			/*
-			 * Escalate to InContact with natural language form
-			 *  More info: https://developers.inbenta.io/chatbot/javascript-sdk/sdk-adapters/nl-escalation-adapter-2
-			 */
-			window.SDKNLEscalation2(inbentaPromiseAgentsAvailableTrue),
-		);
+            /*
+            * Escalate to InContact with natural language form
+            *  More info: https://developers.inbenta.io/chatbot/javascript-sdk/sdk-adapters/nl-escalation-adapter-2
+            */
+            window.SDKNLEscalation2(inbentaPromiseAgentsAvailableTrue),
+        );
 
-		window.InbentaChatbotSDK.buildWithDomainCredentials(inbApp.sdkAuth, inbApp.sdkConfig);
+        window.InbentaChatbotSDK.buildWithDomainCredentials(inbApp.sdkAuth, inbApp.sdkConfig);
 
 	</script>
 </body>

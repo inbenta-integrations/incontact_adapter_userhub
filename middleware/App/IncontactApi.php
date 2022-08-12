@@ -11,6 +11,7 @@ class IncontactApi
     private $env;
     private $apiEndpoint;
     private $headersCommon;
+    private $fixedTimeOut = 24; // Seconds to await until next request
 
     public function __construct()
     {
@@ -190,7 +191,11 @@ class IncontactApi
         $uri = $this->apiEndpoint . '/contacts/chats/' . $queryParams['chatSessionId'];
 
         if (isset($queryParams['timeout']) && $queryParams['timeout'] > 0) {
-            $uri .= '?timeout=' . $queryParams['timeout'];
+            $timeOut = (int) $queryParams['timeout'];
+            if ($timeOut > $this->fixedTimeOut) {
+                $timeOut = $this->fixedTimeOut;
+            }
+            $uri .= '?timeout=' . $timeOut;
         }
         $response = $this->makeRequest('get', $uri, $this->headersCommon);
         if (isset($response["code"]) && $response["code"] == 304) {
