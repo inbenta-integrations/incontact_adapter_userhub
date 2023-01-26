@@ -5,7 +5,7 @@
  * @param {Object} incontactConf [InContact APP configuration]
  * @param {Object} sdkConfig [SDK configuration]
  */
-var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
+var inbentaIncontactAdapter = function (incontactConf, sdkConfig) {
 
     let workingTime = true;
     let agentActive = false;
@@ -16,7 +16,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
     let oneRequestTranscript = incontactConf.oneRequestTranscript == undefined ? true : incontactConf.oneRequestTranscript;
 
     if (!incontactConf.enabled) {
-        return function() {};
+        return function () { };
     } else if (!incontactConf.payload.pointOfContact) {
         console.warn('InContact adapter is misconfigured, therefore it has been disabled.');
         console.warn('Make sure pointOfContact is configured.');
@@ -46,13 +46,13 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
      * InContact session cookies management function
      */
     var IncontactSession = {
-        get: function(key) {
+        get: function (key) {
             return localStorage.getItem(key);
         },
-        set: function(key, value) {
+        set: function (key, value) {
             localStorage.setItem(key, value);
         },
-        delete: function(key) {
+        delete: function (key) {
             localStorage.removeItem(key);
         }
     };
@@ -77,13 +77,13 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         if (typeof cookies === 'string') {
             IncontactSession.delete(cookies);
         } else if (Array.isArray(cookies)) {
-            cookies.forEach(function(cookie) {
+            cookies.forEach(function (cookie) {
                 IncontactSession.delete(cookie);
             });
         }
     }
 
-    return function(chatbot) {
+    return function (chatbot) {
         window.chatbotHelper = chatbot;
         // Initialize inContact auth object
         var auth = {
@@ -101,12 +101,12 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         /*
          * Conect to InContact function (triggered onStartEscalation)
          */
-        var connectToIncontact = function() {
+        var connectToIncontact = function () {
             incontactSessionOn = true;
             startChat();
             auth.closedOnTimeout = false;
             // Start "no agents" timeout
-            auth.timers.noAgents = setTimeout(function() {
+            auth.timers.noAgents = setTimeout(function () {
                 if (!auth.isManagerConnected) {
                     showNoAgentsAvailable = true;
                     incontactSessionOn = false;
@@ -122,7 +122,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
             getChatProfile();
             errorResponse = 0;
             // Create inContact chat room
-            makeChat(function(resp) {
+            makeChat(function (resp) {
                 workingTime = true;
                 auth.chatSessionId = resp.chatSessionId;
                 IncontactSession.set('inbentaIncontactActive', 'active');
@@ -134,14 +134,14 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         /*
          * Get inContact chat profile info [request]
          */
-        var getChatProfile = function() {
+        var getChatProfile = function () {
             var options = {
                 type: 'GET',
                 url: incontactConf.middlewareUrl + '/chat-profile?pointOfContact=' + incontactConf.payload.pointOfContact,
                 async: true
             };
             var request = requestCall(options);
-            request.onload = request.onerror = function() {
+            request.onload = request.onerror = function () {
                 if (!this.response) {
                     return;
                 }
@@ -163,7 +163,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         /*
          * Create inContact chat room [request]
          */
-        var makeChat = function(callback) {
+        var makeChat = function (callback) {
             var options = {
                 type: 'POST',
                 url: incontactConf.middlewareUrl + '/make-chat',
@@ -176,7 +176,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         /*
          * Get inContact agent responses [request]
          */
-        var getChatText = function() {
+        var getChatText = function () {
 
             dd("workingTime: " + workingTime);
             if (!workingTime) return;
@@ -188,7 +188,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                 async: true
             };
             var request = requestCall(options);
-            request.onload = function() {
+            request.onload = function () {
                 errorResponse = 0;
                 if (!this.response) {
                     return;
@@ -198,7 +198,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                 if (workingTime && auth.activeChat) IncontactSession.set('incontactChatSessionId', auth.chatSessionId);
                 if (resp.error !== undefined) return;
                 if (resp.messages === undefined || resp.messages === null) return;
-                resp.messages.forEach(function(message) {
+                resp.messages.forEach(function (message) {
                     if (typeof message.Type !== 'undefined' && typeof message.Status !== 'undefined' && message.Status === 'Waiting') {
                         // in waiting we send chat, to connect with incontact
                         retrieveLastMessages();
@@ -248,7 +248,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                 });
             };
 
-            request.onerror = function() {
+            request.onerror = function () {
                 if (!this.response) {
                     validateResponseError();
                     return;
@@ -259,7 +259,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         /*
          * Send a single message to Incontact [request]
          */
-        var sendMessageToIncontact = function(message, author, async, callback, callbackData) {
+        var sendMessageToIncontact = function (message, author, async, callback, callbackData) {
             if (auth.chatSessionId === '') return;
 
             async = typeof async === 'boolean' ? async : false;
@@ -279,7 +279,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         /*
          * Send multiple message to Incontact [request] (recursive, ordered)
          */
-        var sendMultipleMessagesToIncontact = function(messageArray) {
+        var sendMultipleMessagesToIncontact = function (messageArray) {
 
             dd("--- sendMultipleMessagesToIncontact ---");
             dd(messageArray);
@@ -326,7 +326,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         /*
          * Close InContact chat session [request]
          */
-        var endChatSession = function() {
+        var endChatSession = function () {
             dd("---endChatSession---");
             dd("auth.chatSessionId: " + auth.chatSessionId);
             dd("workingTime: " + workingTime);
@@ -341,7 +341,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
             requestCall(options, finishChat);
         };
 
-        var finishChat = function() {
+        var finishChat = function () {
             auth.chatSessionId = '';
             auth.isManagerConnected = false;
             incontactSessionOn = false;
@@ -362,7 +362,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         /*
         * InContact http [request] template
         */
-        var requestCall = function(requestOptions, callback, callbackData) {
+        var requestCall = function (requestOptions, callback, callbackData) {
             var xmlhttp = new XMLHttpRequest();
             requestOptions.async = true;
             if (!requestOptions.headers) requestOptions.headers = {};
@@ -373,7 +373,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                 requestOptions.headers['Content-Type'] = 'application/json';
             }
 
-            xmlhttp.onreadystatechange = function() {
+            xmlhttp.onreadystatechange = function () {
                 if (xmlhttp.readyState === XMLHttpRequest.DONE) {
                     var response = (this.responseText && this.responseText.indexOf('<!DOCTYPE') == -1) ? JSON.parse(this.responseText) : { messages: [] };
                     dd("Request completed:" + " " + requestOptions.url, 'background: #222; color: #BA55BA');
@@ -409,11 +409,11 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         /*
          * InContact http response handler
          */
-        var httpResponseHandler = function(url, messages) {
+        var httpResponseHandler = function (url, messages) {
             var httpCodeErrors = {
-                200: function() {
+                200: function () {
                     if (messages && messages.length > 0) {
-                        messages.forEach(function(message) {
+                        messages.forEach(function (message) {
                             var text = message.Text;
                             if (text && text.includes(incontactConf.outOfTimeDetection)) return outOfTime(text);
                         });
@@ -421,7 +421,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                     if (!auth.closedOnTimeout) auth.timers.getChatText = setTimeout(getChatText, getMessageTimeout);
                 },
                 202: {},
-                204: function() {
+                204: function () {
                     if (!auth.closedOnTimeout) auth.timers.getChatText = setTimeout(getChatText, getMessageTimeout);
                 },
                 400: genericError,
@@ -526,7 +526,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                 async: true,
                 data: {}
             };
-            requestCall(options, function(response) {
+            requestCall(options, function (response) {
                 var validHours = true;
                 if (response.resultSet !== undefined && response.resultSet.hoursOfOperationProfiles !== undefined && response.resultSet.hoursOfOperationProfiles[0] !== undefined) {
                     var currentD = new Date();
@@ -607,7 +607,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                 async: true,
                 data: {}
             };
-            requestCall(options, function(response) {
+            requestCall(options, function (response) {
                 agentActive = false;
                 if (response.agentStates !== undefined && response.agentStates !== null) {
                     Object.keys(response.agentStates).forEach(key => {
@@ -625,7 +625,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                         chatbot.actions.displaySystemMessage({ message: 'no-agents', translate: true });
                         showNoAgentsAvailable = true;
                         finishChat();
-                        chatbot.actions.sendMessage({directCall: "escalationNoAgentsAvailable"});
+                        chatbot.actions.sendMessage({ directCall: "escalationNoAgentsAvailable" });
                     }
                 } else { //Continue with escalation if we can't validate the availability 
                     continueWithEscalation();
@@ -647,7 +647,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         /*
          * Get chatbot conversation mesages and prepare them to be sent to InContact agent
          */
-        var retrieveLastMessages = function() {
+        var retrieveLastMessages = function () {
             var transcript = chatbot.actions.getConversationTranscript();
             sendMultipleMessagesToIncontact(transcript);
             auth.timers.getChatText = setTimeout(getChatText, getMessageTimeout);
@@ -657,8 +657,8 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
          * If one of the fields is assigned to the label 'EMAIL_ADDRESS', the value provided by the user will replace the 'fromAdress' field.
          * The rest of the escalation data will be inserted in the 'parameters' array.
          */
-        var updateChatInfo = function(escalateData) {
-
+        var updateChatInfo = function (escalateData) {
+            incontactConf.payload.parameters = [];
             for (var field in escalateData) {
                 var fieldName = field.toLowerCase();
                 if (fieldName == 'email_address') {
@@ -680,7 +680,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
          */
 
         // Initiate escalation to inContact
-        chatbot.subscriptions.onEscalateToAgent(function(escalateData, next) {
+        chatbot.subscriptions.onEscalateToAgent(function (escalateData, next) {
             dd("---onEscalationStart--- payload:");
             //Update chat payload before creating the chat
             updateChatInfo(escalateData);
@@ -692,7 +692,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         });
 
         // Route messages to inContact
-        chatbot.subscriptions.onSendMessage(function(messageData, next) {
+        chatbot.subscriptions.onSendMessage(function (messageData, next) {
             dd("---onSendMessage---:");
             dd(messageData);
             dd("---incontactSessionOn---: " + incontactSessionOn);
@@ -719,7 +719,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
                     return false;
                 }
                 escalationOffer = false;
-                
+
                 return next(messageData);
             }
         });
@@ -728,7 +728,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         var escalationOffer = false;
 
         // Show custom agent's picture
-        chatbot.subscriptions.onDisplayChatbotMessage(function(messageData, next) {
+        chatbot.subscriptions.onDisplayChatbotMessage(function (messageData, next) {
             if ((incontactSessionOn && incontactConf.agent && !agentIconSet) || auth.isManagerConnected) {
                 if (incontactConf.agent.avatarImage !== '') chatbot.actions.setChatbotIcon({ source: 'url', url: incontactConf.agent.avatarImage });
                 if (incontactConf.agent.name !== '') chatbot.actions.setChatbotName({ source: 'name', name: incontactConf.agent.name });
@@ -749,7 +749,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         });
 
         // Finish looking for agents Timeout
-        chatbot.subscriptions.onResetSession(function(next) {
+        chatbot.subscriptions.onResetSession(function (next) {
             dd("---onResetSession---");
             agentActive = false;
             clearTimeout(auth.timers.noAgents);
@@ -758,7 +758,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         });
 
         // Handle inContact session/no-session on refresh
-        chatbot.subscriptions.onReady(function(next) {
+        chatbot.subscriptions.onReady(function (next) {
             dd("---onReady---");
             var sessionData = chatbot.actions.getSessionData();
             if (sessionData) {
@@ -779,7 +779,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
             }
         });
 
-        chatbot.subscriptions.onSelectSystemMessageOption(function(optionData, next) {
+        chatbot.subscriptions.onSelectSystemMessageOption(function (optionData, next) {
             if (optionData.id === 'exitConversation' && optionData.option.value === 'yes' && incontactSessionOn === true) {
                 // Clear inContact chatSession on exitConversation
                 clearTimeout(auth.timers.getChatText);
@@ -801,11 +801,11 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
         });
 
         // DATA KEYS LOG
-        chatbot.subscriptions.onDisplaySystemMessage(function(messageData, next) {
+        chatbot.subscriptions.onDisplaySystemMessage(function (messageData, next) {
             // Contact Attended log on agent join conversation system message
             if (messageData.message === 'agent-joined') {
                 chatbot.api.track('CHAT_ATTENDED', { value: 'TRUE' });
-            } 
+            }
             // Contact Unattended log on no agent available system message
             else if (messageData.message === 'no-agents') {
                 chatbot.api.track('CHAT_NO_AGENTS', { value: 'TRUE' });
@@ -813,7 +813,7 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
             return next(messageData);
         });
 
-        chatbot.subscriptions.onStartConversation(function(conversationData, next) {
+        chatbot.subscriptions.onStartConversation(function (conversationData, next) {
             if (conversationData.sessionId !== undefined && conversationData.sessionId !== '') {
                 inbentaChatbotSession = conversationData.sessionId;
                 IncontactSession.set('inbentaChatbotSession', inbentaChatbotSession);
@@ -827,8 +827,8 @@ var inbentaIncontactAdapter = function(incontactConf, sdkConfig) {
  * HELPER: Returns Promise resolving to dummy Object { agentsAvailable: true }
  *
  */
-var inbentaPromiseAgentsAvailableTrue = function() {
-    return new Promise(function(resolve, reject) {
+var inbentaPromiseAgentsAvailableTrue = function () {
+    return new Promise(function (resolve, reject) {
         resolve({ 'agentsAvailable': true });
     });
 }
